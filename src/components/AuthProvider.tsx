@@ -9,11 +9,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    // 初回マウント時にセッション取得
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('getSession (on mount):', session);
       setUser(session?.user ?? null);
     });
 
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
 
     return () => {
       listener.subscription.unsubscribe();

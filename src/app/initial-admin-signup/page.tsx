@@ -1,73 +1,90 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, Eye, EyeOff } from "lucide-react";
 
-export default function RegisterPage() {
-  const [companyName, setCompanyName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export default function InitialAdminSignupPage() {
+  const [companyName, setCompanyName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // 初期登録済みなら/loginへリダイレクト
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isInitialAdminRegistered = localStorage.getItem("initialAdminRegistered");
+      if (isInitialAdminRegistered === "true") {
+        router.replace("/login");
+      }
+    }
+  }, [router]);
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
     setLoading(true);
     if (!companyName.trim()) {
-      setError('会社名を入力してください');
+      setError("会社名を入力してください");
       setLoading(false);
       return;
     }
     // 1. サインアップ
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
     if (signUpError || !signUpData.user) {
-      setError(signUpError?.message || 'サインアップに失敗しました');
+      setError(signUpError?.message || "サインアップに失敗しました");
       setLoading(false);
       return;
     }
     const userId = signUpData.user.id;
     // 2. companiesテーブルに会社をinsert
     const { data: companyData, error: companyError } = await supabase
-      .from('companies')
+      .from("companies")
       .insert([{ name: companyName }])
-      .select('id')
+      .select("id")
       .single();
     if (companyError || !companyData) {
-      setError(companyError?.message || '会社の登録に失敗しました');
+      setError(companyError?.message || "会社の登録に失敗しました");
       setLoading(false);
       return;
     }
     const companyId = companyData.id;
-    // 3. company_usersテーブルにユーザーをinsert
+    // 3. company_usersテーブルに管理者ロールでinsert
     const { error: cuError } = await supabase
-      .from('company_users')
-      .insert([{ user_id: userId, company_id: companyId, email }]);
+      .from("company_users")
+      .insert([{ user_id: userId, company_id: companyId, email, role: "admin" }]);
     if (cuError) {
-      setError(cuError.message || 'ユーザーの登録に失敗しました');
+      setError(cuError.message || "ユーザーの登録に失敗しました");
       setLoading(false);
       return;
     }
-    setSuccess('登録が完了しました。メールを確認してください。');
+    setSuccess("初期管理者登録が完了しました。メールを確認してください。");
     // サインアップ直後にuser_metadataへcompany_idをセット
     try {
-      await supabase.auth.updateUser({ data: { company_id: companyId } });
+      await supabase.auth.updateUser({ data: { company_id: companyId, role: "admin" } });
     } catch (e) {
       // メール認証前は失敗する場合があるので無視
     }
+    // 初期登録済みフラグON
+    if (typeof window !== "undefined") {
+      localStorage.setItem("initialAdminRegistered", "true");
+    }
     setLoading(false);
+    // 2秒後に/loginへ遷移
+    setTimeout(() => {
+      router.replace("/login");
+    }, 2000);
   };
 
   return (
@@ -77,12 +94,12 @@ export default function RegisterPage() {
           <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 text-center">
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white text-lg">👤</span>
+                <span className="text-white text-lg">⭐</span>
               </div>
             </div>
-            <CardTitle className="text-blue-800">アカウントを作成</CardTitle>
+            <CardTitle className="text-blue-800">初期管理者登録</CardTitle>
             <CardDescription className="text-blue-600">
-              新しいアカウントを作成して始めましょう
+              サービス利用開始のため、最初の管理者アカウントを作成してください
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6">
@@ -93,7 +110,6 @@ export default function RegisterPage() {
                 <AlertDescription className="text-red-700">{error}</AlertDescription>
               </Alert>
             )}
-
             {/* Success Alert */}
             {success && (
               <Alert className="mb-6 border-green-200 bg-green-50">
@@ -101,7 +117,6 @@ export default function RegisterPage() {
                 <AlertDescription className="text-green-700">{success}</AlertDescription>
               </Alert>
             )}
-
             <form onSubmit={handleRegister} className="space-y-4">
               {/* Company Information */}
               <div className="space-y-2">
@@ -115,7 +130,6 @@ export default function RegisterPage() {
                   required
                 />
               </div>
-
               {/* Account Information */}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-blue-700">メールアドレス <span className="text-red-500">*</span></Label>
@@ -129,13 +143,12 @@ export default function RegisterPage() {
                   required
                 />
               </div>
-              
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-blue-700">パスワード <span className="text-red-500">*</span></Label>
                 <div className="relative">
                   <Input
                     id="password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     placeholder="8文字以上"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
@@ -151,27 +164,15 @@ export default function RegisterPage() {
                   </button>
                 </div>
               </div>
-
               {/* Submit Button */}
               <Button
                 type="submit"
                 disabled={loading}
                 className="w-full mt-6 bg-blue-600 hover:bg-blue-700"
               >
-                {loading ? '⏳ 作成中...' : '✨ アカウントを作成'}
+                {loading ? "⏳ 登録中..." : "✨ 初期管理者を登録"}
               </Button>
             </form>
-
-            {/* Sign In Link */}
-            <div className="text-center text-sm text-blue-600 mt-6">
-              すでにアカウントをお持ちですか？{' '}
-              <Link 
-                href="/login"
-                className="font-medium text-blue-700 hover:text-blue-800 hover:underline"
-              >
-                サインイン
-              </Link>
-            </div>
           </CardContent>
         </Card>
       </div>

@@ -8,6 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Package, LogOut, Plus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type Product = {
   id: string;
@@ -20,20 +23,64 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false); // Dialogの開閉状態
+  const [addName, setAddName] = useState('');
+  const [addDate, setAddDate] = useState('');
+  const [addLoading, setAddLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    // AuthProviderがセッションを読み込んでいる間はuserがnullなので、
+    // まだリダイレクトせずに待機する
     if (!user) {
-      router.push('/login');
       return;
     }
-    const fetchProducts = async () => {
+
+    // userオブジェクトはあるがidがない、という異常なケースに対応しクラッシュを防ぐ
+    if (!user.id) {
+      setError("ユーザー情報の読み込みに失敗しました。");
+      setLoading(false);
+      return;
+    }
+
+    const getCompanyId = async () => {
       setLoading(true);
+      // まずはuser_metadataから試す
+      let id = user.user_metadata?.company_id;
+
+      // なければcompany_usersテーブルから取得
+      if (!id) {
+        const { data, error: dbError } = await supabase
+          .from("company_users")
+          .select("company_id")
+          .eq("user_id", user.id)
+          .single();
+
+        if (dbError || !data) {
+          setError("会社情報の取得に失敗しました。再ログインしてください。");
+          setLoading(false); // エラー発生時はローディングを止める
+          return;
+        }
+        id = data.company_id;
+      }
+      setCompanyId(id);
+    };
+
+    getCompanyId();
+    // 依存配列からrouterを削除し、userオブジェクトの変更時のみ発火させる
+  }, [user]);
+
+  useEffect(() => {
+    if (!companyId) return;
+
+    const fetchProducts = async () => {
       setError('');
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .eq('company_id', user?.user_metadata.company_id);
+        .eq('company_id', companyId);
+
       if (error) {
         setError('製品の取得に失敗しました');
       } else {
@@ -41,15 +88,57 @@ export default function ProductsPage() {
       }
       setLoading(false);
     };
+
     fetchProducts();
-  }, [user, router]);
+  }, [companyId]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/login');
   };
 
-  if (!user) return null;
+  // 製品追加処理
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addName || !addDate || !companyId) return;
+    setAddLoading(true);
+    setError('');
+    
+    const insertData = { 
+      name: addName, 
+      delivery_date: addDate, 
+      company_id: companyId 
+    };
+    
+    const { error } = await supabase
+      .from('products')
+      .insert([insertData]);
+    if (error) {
+      console.error('Supabase error:', error);
+      setError('製品の追加に失敗しました: ' + error.message);
+    } else {
+      setAddName('');
+      setAddDate('');
+      setOpen(false);
+      // 再取得
+      setLoading(true);
+      const { data, error: refetchError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('company_id', companyId);
+      if (!refetchError) setProducts(data || []);
+      setLoading(false);
+    }
+    setAddLoading(false);
+  };
+
+  // 読み込み中や未ログイン状態のハンドリング
+  // userがnull（読み込み中 or 未ログイン）の場合は何も表示しない
+  if (!user) {
+    // 本当に未ログインの場合は、最終的にログインページにリダイレクトされる想定
+    return null;
+  }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -66,10 +155,43 @@ export default function ProductsPage() {
             </div>
           </div>
           <div className="flex space-x-3">
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              製品追加
-            </Button>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  製品追加
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>新しい製品を追加</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleAddProduct} className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="add-name">製品名 <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="add-name"
+                      value={addName}
+                      onChange={e => setAddName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="add-date">納期 <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="add-date"
+                      type="date"
+                      value={addDate}
+                      onChange={e => setAddDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={addLoading}>
+                    {addLoading ? '追加中...' : '追加'}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
             <Button variant="outline" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               ログアウト
@@ -96,7 +218,7 @@ export default function ProductsPage() {
               <Package className="w-16 h-16 text-blue-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-blue-800 mb-2">製品がありません</h3>
               <p className="text-blue-600 mb-4">新しい製品を追加して納期管理を始めましょう</p>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 最初の製品を追加
               </Button>

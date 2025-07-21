@@ -23,10 +23,22 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error, data: signInData } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError(error.message);
     } else {
+      // すでにcompany_idがセットされていればupdateUserは呼ばない
+      const currentCompanyId = signInData?.user?.user_metadata?.company_id;
+      if (!currentCompanyId) {
+        const { data: userRow } = await supabase
+          .from('company_users')
+          .select('company_id')
+          .eq('email', email)
+          .single();
+        if (userRow?.company_id) {
+          await supabase.auth.updateUser({ data: { company_id: userRow.company_id } });
+        }
+      }
       router.push('/products');
     }
     setLoading(false);
