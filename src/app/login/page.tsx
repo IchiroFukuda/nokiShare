@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { useState, useEffect } from 'react';
+import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
+  const { data: session, status } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -19,30 +20,49 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // ログイン済みの場合は製品ページにリダイレクト
+  useEffect(() => {
+    if (status === 'authenticated' && session) {
+      router.push('/products');
+    }
+  }, [session, status, router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error, data: signInData } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
+    
+    const result = await signIn('credentials', {
+      email,
+      password,
+      redirect: false,
+    });
+
+    if (result?.error) {
+      setError(result.error);
     } else {
-      // すでにcompany_idがセットされていればupdateUserは呼ばない
-      const currentCompanyId = signInData?.user?.user_metadata?.company_id;
-      if (!currentCompanyId) {
-        const { data: userRow } = await supabase
-          .from('company_users')
-          .select('company_id')
-          .eq('email', email)
-          .single();
-        if (userRow?.company_id) {
-          await supabase.auth.updateUser({ data: { company_id: userRow.company_id } });
-        }
-      }
       router.push('/products');
     }
     setLoading(false);
   };
+
+  // 認証状態の読み込み中
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-blue-600 text-lg">認証情報を読み込み中...</div>
+      </div>
+    );
+  }
+
+  // ログイン済みの場合は何も表示しない（リダイレクト中）
+  if (status === 'authenticated') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-blue-600 text-lg">リダイレクト中...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">

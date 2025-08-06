@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../../components/AuthProvider';
+import { supabase } from '../../lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -14,131 +14,150 @@ import { Label } from '@/components/ui/label';
 
 type Product = {
   id: string;
-  name: string;
-  delivery_date: string;
+  product_name: string;
+  order_number: string;
+  customer_name: string | null;
+  unique_key: string;
+  estimated_delivery_date: string | null;
+  actual_shipping_date: string | null;
+  internal_status: string | null;
+  public_status: string | null;
+  created_at: string;
+  company_id: string;
 };
 
+
+
 export default function ProductsPage() {
-  const { user } = useAuth();
+  const { data: session, status } = useSession();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // 初期値をfalseに変更
   const [error, setError] = useState('');
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  const [open, setOpen] = useState(false); // Dialogの開閉状態
+  const [open, setOpen] = useState(false);
   const [addName, setAddName] = useState('');
   const [addDate, setAddDate] = useState('');
   const [addLoading, setAddLoading] = useState(false);
   const router = useRouter();
 
+
+
+  // 認証状態のチェックと製品取得
   useEffect(() => {
-    // AuthProviderがセッションを読み込んでいる間はuserがnullなので、
-    // まだリダイレクトせずに待機する
-    if (!user) {
+    if (status === 'loading') {
+      setLoading(true); // 認証状態読み込み中はローディング表示
       return;
     }
 
-    // userオブジェクトはあるがidがない、という異常なケースに対応しクラッシュを防ぐ
-    if (!user.id) {
-      setError("ユーザー情報の読み込みに失敗しました。");
+    if (status === 'unauthenticated') {
       setLoading(false);
+      router.push('/login');
       return;
     }
 
-    const getCompanyId = async () => {
-      setLoading(true);
-      // まずはuser_metadataから試す
-      let id = user.user_metadata?.company_id;
+    if (session?.user?.company_id) {
+      fetchProducts();
+    } else {
+      setLoading(false);
+    }
+  }, [session, status, router]);
 
-      // なければcompany_usersテーブルから取得
-      if (!id) {
-        const { data, error: dbError } = await supabase
-          .from("company_users")
-          .select("company_id")
-          .eq("user_id", user.id)
-          .single();
+  // 製品取得関数
+  const fetchProducts = async () => {
+    if (!session?.user?.company_id) {
+      return;
+    }
 
-        if (dbError || !data) {
-          setError("会社情報の取得に失敗しました。再ログインしてください。");
-          setLoading(false); // エラー発生時はローディングを止める
-          return;
-        }
-        id = data.company_id;
-      }
-      setCompanyId(id);
-    };
+    setLoading(true);
+    setError('');
 
-    getCompanyId();
-    // 依存配列からrouterを削除し、userオブジェクトの変更時のみ発火させる
-  }, [user]);
-
-  useEffect(() => {
-    if (!companyId) return;
-
-    const fetchProducts = async () => {
-      setError('');
+    try {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .eq('company_id', companyId);
+        .eq('company_id', session.user.company_id)
+        .order('created_at', { ascending: false });
 
       if (error) {
-        setError('製品の取得に失敗しました');
+        console.error('Products fetch error:', error);
+        setError('製品の取得に失敗しました: ' + error.message);
+        setProducts([]);
       } else {
         setProducts(data || []);
       }
+    } catch (error) {
+      console.error('Unexpected error fetching products:', error);
+      setError('製品の取得中に予期しないエラーが発生しました');
+      setProducts([]);
+    } finally {
       setLoading(false);
-    };
-
-    fetchProducts();
-  }, [companyId]);
+    }
+  };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut({ redirect: false });
     router.push('/login');
   };
 
   // 製品追加処理
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addName || !addDate || !companyId) return;
+    if (!addName || !addDate || !session?.user?.company_id) return;
+    
     setAddLoading(true);
     setError('');
     
-    const insertData = { 
-      name: addName, 
-      delivery_date: addDate, 
-      company_id: companyId 
-    };
-    
-    const { error } = await supabase
-      .from('products')
-      .insert([insertData]);
-    if (error) {
-      console.error('Supabase error:', error);
-      setError('製品の追加に失敗しました: ' + error.message);
-    } else {
-      setAddName('');
-      setAddDate('');
-      setOpen(false);
-      // 再取得
-      setLoading(true);
-      const { data, error: refetchError } = await supabase
+    try {
+      const { error } = await supabase
         .from('products')
-        .select('*')
-        .eq('company_id', companyId);
-      if (!refetchError) setProducts(data || []);
-      setLoading(false);
+        .insert([{
+          product_name: addName,
+          order_number: `ORD-${Date.now()}`,
+          customer_name: '新規顧客',
+          unique_key: `KEY-${Date.now()}`,
+          estimated_delivery_date: addDate,
+          company_id: session.user.company_id
+        }]);
+
+      if (error) {
+        console.error('Product insert error:', error);
+        setError('製品の追加に失敗しました: ' + error.message);
+      } else {
+        // 製品リストを再取得
+        await fetchProducts();
+        setAddName('');
+        setAddDate('');
+        setOpen(false);
+      }
+    } catch (error) {
+      console.error('Unexpected error adding product:', error);
+      setError('製品の追加中に予期しないエラーが発生しました');
+    } finally {
+      setAddLoading(false);
     }
-    setAddLoading(false);
   };
 
-  // 読み込み中や未ログイン状態のハンドリング
-  // userがnull（読み込み中 or 未ログイン）の場合は何も表示しない
-  if (!user) {
-    // 本当に未ログインの場合は、最終的にログインページにリダイレクトされる想定
-    return null;
+  // 認証状態の読み込み中
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-blue-600 text-lg">認証情報を読み込み中...</div>
+      </div>
+    );
   }
 
+  // 未認証状態
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-blue-600 text-lg mb-4">ログインが必要です</div>
+          <Button onClick={() => router.push('/login')} className="bg-blue-600 hover:bg-blue-700">
+            ログインページへ
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -152,6 +171,9 @@ export default function ProductsPage() {
             <div>
               <h1 className="text-2xl font-bold text-blue-800">製品管理</h1>
               <p className="text-blue-600">会社単位での製品納期管理</p>
+              {session?.user && (
+                <p className="text-sm text-blue-500">ログイン中: {session.user.name}</p>
+              )}
             </div>
           </div>
           <div className="flex space-x-3">
@@ -229,14 +251,18 @@ export default function ProductsPage() {
             {products.map(product => (
               <Card key={product.id} className="shadow-lg border-blue-100 hover:shadow-xl transition-shadow">
                 <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
-                  <CardTitle className="text-blue-800">{product.name}</CardTitle>
-                  <CardDescription className="text-blue-600">製品ID: {product.id}</CardDescription>
+                  <CardTitle className="text-blue-800">{product.product_name}</CardTitle>
+                  <CardDescription className="text-blue-600">注文番号: {product.order_number}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-6">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-blue-700 font-medium">納期:</span>
-                      <span className="text-blue-800 font-semibold">{product.delivery_date}</span>
+                      <span className="text-blue-700 font-medium">顧客名:</span>
+                      <span className="text-blue-800 font-semibold">{product.customer_name || '未設定'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-blue-700 font-medium">予定納期:</span>
+                      <span className="text-blue-800 font-semibold">{product.estimated_delivery_date || '未設定'}</span>
                     </div>
                     <div className="flex space-x-2 mt-4">
                       <Button variant="outline" size="sm" className="flex-1">
