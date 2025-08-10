@@ -1,24 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NokiShare
 
-## Getting Started
+NokiShareは、製品管理と共有のためのWebアプリケーションです。
 
-First, run the development server:
+## セットアップ
+
+### 1. 依存関係のインストール
+
+```bash
+npm install
+```
+
+### 2. 環境変数の設定
+
+プロジェクトルートに`.env.local`ファイルを作成し、以下の環境変数を設定してください：
+
+```env
+# NextAuth設定
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-nextauth-secret-key-here
+
+# メール送信設定
+EMAIL_SERVER_HOST=smtp.gmail.com
+EMAIL_SERVER_PORT=587
+EMAIL_SERVER_USER=your-email@gmail.com
+EMAIL_SERVER_PASSWORD=your-app-password
+EMAIL_FROM=your-email@gmail.com
+
+# Supabase設定
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+```
+
+#### メール送信設定について
+
+Gmailを使用する場合：
+1. Gmailアカウントで2段階認証を有効にする
+2. アプリパスワードを生成する
+3. `EMAIL_SERVER_USER`にGmailアドレスを設定
+4. `EMAIL_SERVER_PASSWORD`にアプリパスワードを設定
+
+### 3. データベースのセットアップ
+
+Supabaseでデータベースを作成し、以下の手順でセットアップしてください：
+
+#### 新規セットアップの場合
+`supabase-setup.sql`の内容を実行してください。
+
+#### 既存のデータベースを更新する場合
+`database-migration.sql`の内容を実行してください。これにより：
+- `users`テーブルに`email_verified`カラムが追加されます
+- `email_verification_tokens`テーブルが作成されます
+- 既存のユーザーは自動的にメール確認済みとしてマークされます
+
+### 4. 開発サーバーの起動
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More
 

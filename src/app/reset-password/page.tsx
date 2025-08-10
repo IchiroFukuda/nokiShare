@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '../../lib/supabase';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,15 +20,28 @@ export default function ResetPasswordPage() {
     setMessage('');
     setError('');
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'http://localhost:3000/update-password'
-    });
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage('パスワードリセット用のメールを送信しました。メールをご確認ください。');
+
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'パスワードリセットに失敗しました');
+      } else {
+        setMessage('パスワードリセット用のメールを送信しました。メールをご確認ください。');
+      }
+    } catch (error) {
+      setError('パスワードリセット処理中にエラーが発生しました');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

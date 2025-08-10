@@ -26,48 +26,109 @@ export default function RegisterPage() {
     setError('');
     setSuccess('');
     setLoading(true);
+    
     if (!companyName.trim()) {
       setError('会社名を入力してください');
       setLoading(false);
       return;
     }
-    // 1. サインアップ
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
-    if (signUpError || !signUpData.user) {
-      setError(signUpError?.message || 'サインアップに失敗しました');
-      setLoading(false);
-      return;
-    }
-    const userId = signUpData.user.id;
-    // 2. companiesテーブルに会社をinsert
-    const { data: companyData, error: companyError } = await supabase
-      .from('companies')
-      .insert([{ name: companyName }])
-      .select('id')
-      .single();
-    if (companyError || !companyData) {
-      setError(companyError?.message || '会社の登録に失敗しました');
-      setLoading(false);
-      return;
-    }
-    const companyId = companyData.id;
-    // 3. company_usersテーブルにユーザーをinsert
-    const { error: cuError } = await supabase
-      .from('company_users')
-      .insert([{ user_id: userId, company_id: companyId, email }]);
-    if (cuError) {
-      setError(cuError.message || 'ユーザーの登録に失敗しました');
-      setLoading(false);
-      return;
-    }
-    setSuccess('登録が完了しました。メールを確認してください。');
-    // サインアップ直後にuser_metadataへcompany_idをセット
+
     try {
-      await supabase.auth.updateUser({ data: { company_id: companyId } });
-    } catch (e) {
-      // メール認証前は失敗する場合があるので無視
+      // 1. 会社を作成
+      const { data: companyData, error: companyError } = await supabase
+        .from('companies')
+        .insert([{ name: companyName }])
+        .select('id')
+        .single();
+
+      if (companyError && !companyError.message.includes('duplicate key')) {
+        setError('会社の作成に失敗しました');
+        setLoading(false);
+        return;
+      }
+
+      // 会社IDを取得（新規作成または既存）
+      let companyId;
+      if (companyData) {
+        companyId = companyData.id;
+      } else {
+        const { data: existingCompany } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('name', companyName)
+          .single();
+        companyId = existingCompany?.id;
+      }
+
+      if (!companyId) {
+        setError('会社情報の取得に失敗しました');
+        setLoading(false);
+        return;
+      }
+
+      // 2. パスワードをハッシュ化
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      // 3. ユーザーを作成
+      const { error: userError } = await supabase
+        .from('users')
+        .insert([{
+          email: email,
+          password: hashedPassword,
+          name: email.split('@')[0], // メールアドレスの@前を名前として使用
+          company_id: companyId,
+          email_verified: false
+        }]);
+
+      if (userError) {
+        setError('ユーザーの作成に失敗しました');
+        setLoading(false);
+        return;
+      }
+
+      // 4. メール確認メールを送信
+      try {
+        const response = await fetch('/api/auth/verify-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            email: email,
+            name: email.split('@')[0]
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Email verification failed:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData
+          });
+          // メール送信に失敗してもユーザー登録は成功とする
+        } else {
+          console.log('Email verification email sent successfully');
+        }
+      } catch (emailError) {
+        console.error('Email verification error:', emailError);
+        // メール送信に失敗してもユーザー登録は成功とする
+      }
+
+      setSuccess('登録が完了しました。メール確認用のメールを送信しました。メールをご確認ください。');
+      setLoading(false);
+      
+      // 3秒後にログインページにリダイレクト
+      setTimeout(() => {
+        router.push('/login');
+      }, 3000);
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError('登録処理中にエラーが発生しました');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

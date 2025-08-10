@@ -93,6 +93,8 @@ export default function ProductsPage() {
     }
   };
 
+
+
   const handleLogout = async () => {
     await signOut({ redirect: false });
     router.push('/login');

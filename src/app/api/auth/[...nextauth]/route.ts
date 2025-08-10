@@ -16,20 +16,27 @@ const handler = NextAuth({
         }
 
         try {
-          // Supabaseからユーザーを取得
+          // ユーザーをデータベースから取得
           const { data: user, error } = await supabase
             .from('users')
             .select('*')
             .eq('email', credentials.email)
-            .eq('password', credentials.password)
             .single();
 
           if (error) {
-            console.error('Supabase error:', error);
+            console.error('Database error:', error);
             return null;
           }
 
           if (!user) {
+            return null;
+          }
+
+          // パスワードを比較
+          const bcrypt = require('bcryptjs');
+          const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+
+          if (!isPasswordValid) {
             return null;
           }
           
@@ -66,6 +73,7 @@ const handler = NextAuth({
   },
   pages: {
     signIn: "/login",
+    error: "/auth/error",
   },
 });
 
