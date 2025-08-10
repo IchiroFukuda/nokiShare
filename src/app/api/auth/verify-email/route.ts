@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../../lib/supabase';
-import crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
+import crypto from 'crypto';
+import { supabase } from '../../../../lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,29 +14,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // メール確認トークンを生成
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationTokenExpiry = new Date(Date.now() + 86400000); // 24時間後
-
-    // メール確認トークンをデータベースに保存
-    const { error: tokenError } = await supabase
-      .from('email_verification_tokens')
-      .upsert({
-        email: email,
-        token: verificationToken,
-        expires: verificationTokenExpiry.toISOString(),
-      });
-
-    if (tokenError) {
-      console.error('Token save error:', tokenError);
+    // メールアドレスの形式チェック
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
       return NextResponse.json(
-        { error: 'メール確認トークンの保存に失敗しました' },
+        { error: '有効なメールアドレスを入力してください' },
+        { status: 400 }
+      );
+    }
+
+    // 既存ユーザーの重複チェック
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('id, email_verified')
+      .eq('email', email)
+      .single();
+
+    if (userCheckError && userCheckError.code !== 'PGRST116') {
+      // PGRST116は「行が見つからない」エラー以外のエラー
+      console.error('User check error:', userCheckError);
+      return NextResponse.json(
+        { error: 'ユーザー情報の確認に失敗しました' },
         { status: 500 }
       );
     }
 
+    if (existingUser) {
+      // 既存ユーザーの場合
+      if (existingUser.email_verified) {
+        return NextResponse.json(
+          { error: 'このメールアドレスは既に登録済みです' },
+          { status: 409 }
+        );
+      } else {
+        return NextResponse.json(
+          { error: 'このメールアドレスは既に登録されていますが、まだ確認が完了していません。確認メールを再送信しますか？' },
+          { status: 409 }
+        );
+      }
+    }
+
+    // セッションストレージ用の一時的なトークンを生成
+    const tempToken = crypto.randomBytes(32).toString('hex');
+    
     // メール確認メールを送信
-    const verificationUrl = `${process.env.NEXTAUTH_URL}/verify-email/confirm?token=${verificationToken}`;
+    const verificationUrl = `${process.env.NEXTAUTH_URL}/verify-email/confirm?token=${tempToken}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
     
     console.log('Verification URL:', verificationUrl);
     console.log('Email settings:', {

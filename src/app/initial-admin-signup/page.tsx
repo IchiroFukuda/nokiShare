@@ -42,7 +42,26 @@ export default function InitialAdminSignupPage() {
       return;
     }
 
+    if (password.length < 8) {
+      setError("パスワードは8文字以上で入力してください");
+      setLoading(false);
+      return;
+    }
+
     try {
+      // セッションストレージにパスワードと名前を保存
+      const signupData = {
+        password: password,
+        name: email.split('@')[0],
+        timestamp: Date.now(),
+        expires: Date.now() + (24 * 60 * 60 * 1000) // 24時間後
+      };
+      localStorage.setItem('signup_data', JSON.stringify(signupData));
+      
+      // デバッグ情報を追加
+      console.log('Debug: Saved signup data to localStorage:', signupData);
+      console.log('Debug: localStorage.getItem("signup_data"):', localStorage.getItem('signup_data'));
+
       // 1. 会社を作成
       const { data: companyData, error: companyError } = await supabase
         .from("companies")
@@ -75,28 +94,10 @@ export default function InitialAdminSignupPage() {
         return;
       }
 
-      // 2. パスワードをハッシュ化
-      const bcrypt = require('bcryptjs');
-      const hashedPassword = await bcrypt.hash(password, 12);
+      // 会社IDをセッションストレージに保存
+      localStorage.setItem('signup_company_id', companyId);
 
-      // 3. 管理者ユーザーを作成
-      const { error: userError } = await supabase
-        .from("users")
-        .insert([{
-          email: email,
-          password: hashedPassword,
-          name: email.split('@')[0], // メールアドレスの@前を名前として使用
-          company_id: companyId,
-          email_verified: false
-        }]);
-
-      if (userError) {
-        setError("管理者ユーザーの作成に失敗しました");
-        setLoading(false);
-        return;
-      }
-
-      // 4. メール確認メールを送信
+      // 2. メール確認メールを送信
       try {
         const response = await fetch('/api/auth/verify-email', {
           method: 'POST',
@@ -116,27 +117,50 @@ export default function InitialAdminSignupPage() {
             statusText: response.statusText,
             error: errorData
           });
-          // メール送信に失敗してもユーザー登録は成功とする
+          
+          // エラーの種類に応じて適切なメッセージを表示
+          if (response.status === 409) {
+            if (errorData.error.includes('まだ確認が完了していません')) {
+              setError('このメールアドレスは既に登録されていますが、確認が完了していません。確認メールを再送信しますか？');
+            } else {
+              setError('このメールアドレスは既に登録済みです。別のメールアドレスを使用するか、ログインページからログインしてください。');
+            }
+          } else if (response.status === 400) {
+            setError(errorData.error || '入力内容に問題があります。');
+          } else {
+            setError('メール送信に失敗しました。しばらく時間をおいて再度お試しください。');
+          }
+          
+          // エラー時はセッションストレージをクリア
+          localStorage.removeItem('signup_data');
+          localStorage.removeItem('signup_company_id');
+          setLoading(false);
+          return;
         } else {
           console.log('Email verification email sent successfully');
         }
       } catch (emailError) {
         console.error('Email verification error:', emailError);
-        // メール送信に失敗してもユーザー登録は成功とする
+        setError('メール送信に失敗しました。しばらく時間をおいて再度お試しください。');
+        // エラー時はセッションストレージをクリア
+        localStorage.removeItem('signup_data');
+        localStorage.removeItem('signup_company_id');
+        setLoading(false);
+        return;
       }
 
-      // 5. 初期登録済みフラグON
+      // 3. 初期登録済みフラグON
       if (typeof window !== "undefined") {
         localStorage.setItem("initialAdminRegistered", "true");
       }
 
-      setSuccess("初期管理者登録が完了しました。メール確認用のメールを送信しました。メールをご確認ください。");
+      setSuccess("初期管理者登録の準備が完了しました。メール確認用のメールを送信しました。メールをご確認ください。");
       setLoading(false);
       
-      // 3秒後にログインページにリダイレクト
-      setTimeout(() => {
-        router.push('/login');
-      }, 3000);
+      // フォームをリセット
+      setCompanyName("");
+      setEmail("");
+      setPassword("");
 
     } catch (error) {
       console.error('Registration error:', error);

@@ -36,6 +36,7 @@ export default function ProductsPage() {
   const [open, setOpen] = useState(false);
   const [addName, setAddName] = useState('');
   const [addDate, setAddDate] = useState('');
+  const [addCustomer, setAddCustomer] = useState('');
   const [addLoading, setAddLoading] = useState(false);
   const router = useRouter();
 
@@ -103,7 +104,7 @@ export default function ProductsPage() {
   // 製品追加処理
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addName || !addDate || !session?.user?.company_id) return;
+    if (!addName || !addDate || !addCustomer || !session?.user?.company_id) return;
     
     setAddLoading(true);
     setError('');
@@ -114,7 +115,7 @@ export default function ProductsPage() {
         .insert([{
           product_name: addName,
           order_number: `ORD-${Date.now()}`,
-          customer_name: '新規顧客',
+          customer_name: addCustomer,
           unique_key: `KEY-${Date.now()}`,
           estimated_delivery_date: addDate,
           company_id: session.user.company_id
@@ -128,6 +129,7 @@ export default function ProductsPage() {
         await fetchProducts();
         setAddName('');
         setAddDate('');
+        setAddCustomer('');
         setOpen(false);
       }
     } catch (error) {
@@ -197,6 +199,15 @@ export default function ProductsPage() {
                       id="add-name"
                       value={addName}
                       onChange={e => setAddName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="add-customer">顧客名 <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="add-customer"
+                      value={addCustomer}
+                      onChange={e => setAddCustomer(e.target.value)}
                       required
                     />
                   </div>

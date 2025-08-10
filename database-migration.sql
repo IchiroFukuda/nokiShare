@@ -19,12 +19,19 @@ CREATE TABLE IF NOT EXISTS public.email_verification_tokens (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. インデックスを作成（パフォーマンス向上のため）
+-- 4. email_verification_tokensテーブルにpasswordとnameフィールドを追加
+ALTER TABLE public.email_verification_tokens 
+ADD COLUMN IF NOT EXISTS password VARCHAR(255);
+
+ALTER TABLE public.email_verification_tokens 
+ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+
+-- 5. インデックスを作成（パフォーマンス向上のため）
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_email ON public.email_verification_tokens(email);
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token ON public.email_verification_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires ON public.email_verification_tokens(expires);
 
--- 5. 既存のテーブルのRLSポリシーを確認・更新
+-- 6. 既存のテーブルのRLSポリシーを確認・更新
 -- usersテーブルのポリシーが存在しない場合は作成
 DO $$
 BEGIN
@@ -36,7 +43,7 @@ BEGIN
   END IF;
 END $$;
 
--- 6. テーブルの権限を確認
+-- 7. テーブルの権限を確認
 GRANT ALL PRIVILEGES ON public.email_verification_tokens TO authenticated;
 GRANT ALL PRIVILEGES ON public.email_verification_tokens TO anon;
 GRANT ALL PRIVILEGES ON public.users TO authenticated;

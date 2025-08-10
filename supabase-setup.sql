@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
-  company_id UUID NOT NULL REFERENCES companies(id),
+  company_id UUID REFERENCES companies(id), -- NULL許可に変更
   email_verified BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -126,3 +126,9 @@ CREATE POLICY "Products are updatable by company" ON public.products
 
 CREATE POLICY "Products are deletable by company" ON public.products
   FOR DELETE USING (company_id::text = current_setting('app.company_id', true)); 
+
+-- 既存のデータベースを修正するためのマイグレーション
+-- company_idカラムをNULL許可に変更
+ALTER TABLE public.users ALTER COLUMN company_id DROP NOT NULL;
+
+-- 製品テーブル 

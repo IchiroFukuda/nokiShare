@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function VerifyEmailConfirmPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
@@ -14,22 +15,80 @@ export default function VerifyEmailConfirmPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
+  const email = searchParams.get('email');
+  const name = searchParams.get('name');
 
   useEffect(() => {
-    if (!token) {
+    if (!token || !email) {
       setStatus('error');
-      setMessage('無効なトークンです');
+      setMessage('無効なリンクです');
       return;
     }
 
     const verifyEmail = async () => {
       try {
+        // デバッグ情報を追加
+        console.log('Debug: Starting email verification');
+        console.log('Debug: Token:', token);
+        console.log('Debug: Email:', email);
+        console.log('Debug: Name:', name);
+        
+        // セッションストレージからパスワードを取得
+        const signupDataStr = localStorage.getItem('signup_data');
+        console.log('Debug: signupDataStr from localStorage:', signupDataStr);
+        
+        if (!signupDataStr) {
+          console.log('Debug: No signup data found in localStorage');
+          setStatus('error');
+          setMessage('サインアップデータが見つかりません。再度サインアップを行ってください。');
+          return;
+        }
+
+        let signupData;
+        try {
+          signupData = JSON.parse(signupDataStr);
+          console.log('Debug: Parsed signupData:', signupData);
+        } catch (parseError) {
+          console.log('Debug: Parse error:', parseError);
+          setStatus('error');
+          setMessage('サインアップデータの形式が無効です。再度サインアップを行ってください。');
+          return;
+        }
+
+        // 有効期限をチェック
+        const now = Date.now();
+        console.log('Debug: Current time:', now);
+        console.log('Debug: Expires time:', signupData.expires);
+        console.log('Debug: Is expired:', now > signupData.expires);
+        
+        if (now > signupData.expires) {
+          console.log('Debug: Data is expired');
+          setStatus('error');
+          setMessage('サインアップの有効期限が切れています。再度サインアップを行ってください。');
+          localStorage.removeItem('signup_data');
+          localStorage.removeItem('signup_company_id');
+          return;
+        }
+
+        const password = signupData.password;
+        const storedName = signupData.name;
+        console.log('Debug: Password exists:', !!password);
+        console.log('Debug: Stored name:', storedName);
+        
+        if (!password) {
+          console.log('Debug: No password found in signupData');
+          setStatus('error');
+          setMessage('セッションが無効です。再度サインアップを行ってください。');
+          return;
+        }
+
+        // メール確認APIを呼び出し
         const response = await fetch('/api/auth/verify-email/confirm', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token, email, name }),
         });
 
         const data = await response.json();
@@ -37,18 +96,71 @@ export default function VerifyEmailConfirmPage() {
         if (!response.ok) {
           setStatus('error');
           setMessage(data.error || 'メール確認に失敗しました');
-        } else {
-          setStatus('success');
-          setMessage('メールアドレスの確認が完了しました');
+          return;
         }
+
+        // 新規ユーザーの場合はユーザー作成を行う
+        if (data.isNewUser) {
+          try {
+            // パスワードをハッシュ化
+            const bcrypt = require('bcryptjs');
+            const hashedPassword = await bcrypt.hash(password, 12);
+
+            // セッションストレージから会社IDを取得
+            const companyId = localStorage.getItem('signup_company_id');
+            console.log('Debug: Company ID from localStorage:', companyId);
+
+            // ユーザーを作成
+            const { error: createError } = await supabase
+              .from('users')
+              .insert([{
+                email: email,
+                name: name || storedName || email.split('@')[0],
+                password: hashedPassword,
+                email_verified: true,
+                company_id: companyId || null, // 会社IDがない場合はnull
+                created_at: new Date().toISOString()
+              }]);
+
+            if (createError) {
+              console.error('User creation error:', createError);
+              
+              // エラーの種類に応じて適切なメッセージを表示
+              if (createError.code === '23505' && createError.message.includes('duplicate key')) {
+                setStatus('error');
+                setMessage('このメールアドレスは既に登録済みです。別のメールアドレスを使用するか、ログインページからログインしてください。');
+              } else if (createError.code === '23503' && createError.message.includes('foreign key')) {
+                setStatus('error');
+                setMessage('会社情報の関連付けに失敗しました。管理者にお問い合わせください。');
+              } else {
+                setStatus('error');
+                setMessage('ユーザーの作成に失敗しました: ' + (createError.message || '不明なエラー'));
+              }
+              return;
+            }
+
+            // セッションストレージをクリア
+            localStorage.removeItem('signup_data');
+            localStorage.removeItem('signup_company_id');
+          } catch (userCreateError) {
+            console.error('User creation error:', userCreateError);
+            setStatus('error');
+            setMessage('ユーザーの作成に失敗しました');
+            return;
+          }
+        }
+
+        setStatus('success');
+        setMessage('メールアドレスの確認が完了しました');
       } catch (error) {
+        console.error('Email verification error:', error);
         setStatus('error');
         setMessage('メール確認処理中にエラーが発生しました');
       }
     };
 
     verifyEmail();
-  }, [token]);
+  }, [token, email, name]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">

@@ -12,6 +12,7 @@ const handler = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          // セキュリティ上の理由で、詳細なエラー情報は返さない
           return null;
         }
 
@@ -24,11 +25,19 @@ const handler = NextAuth({
             .single();
 
           if (error) {
-            console.error('Database error:', error);
+            // データベースエラーの場合も詳細情報は返さない
+            console.error('Database error during authentication:', error);
             return null;
           }
 
           if (!user) {
+            // ユーザーが存在しない場合も詳細情報は返さない
+            return null;
+          }
+
+          // メール確認が完了しているかチェック
+          if (!user.email_verified) {
+            // メール確認未完了の場合も詳細情報は返さない
             return null;
           }
 
@@ -37,6 +46,7 @@ const handler = NextAuth({
           const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
 
           if (!isPasswordValid) {
+            // パスワードが間違っている場合も詳細情報は返さない
             return null;
           }
           
@@ -48,6 +58,7 @@ const handler = NextAuth({
           };
         } catch (error) {
           console.error('Unexpected error during authentication:', error);
+          // 予期しないエラーの場合も詳細情報は返さない
           return null;
         }
       },
