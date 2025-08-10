@@ -41,6 +41,13 @@ BEGIN
     CREATE POLICY "Users are viewable by everyone" ON public.users
       FOR SELECT USING (true);
   END IF;
+  
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'users' AND policyname = 'Users can update their own password'
+  ) THEN
+    CREATE POLICY "Users can update their own password" ON public.users
+      FOR UPDATE USING (true);
+  END IF;
 END $$;
 
 -- 7. テーブルの権限を確認

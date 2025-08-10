@@ -27,11 +27,6 @@ export default function ResetPasswordConfirmPage() {
     // URLパラメータからトークンを取得
     const tokenParam = searchParams.get('token');
     
-    // デバッグ情報を出力
-    console.log('URL search params:', searchParams.toString());
-    console.log('Token param:', tokenParam);
-    console.log('All search params:', Object.fromEntries(searchParams.entries()));
-    
     if (!tokenParam) {
       setError('無効なリセットリンクです。再度リセットメールを送信してください。');
       return;

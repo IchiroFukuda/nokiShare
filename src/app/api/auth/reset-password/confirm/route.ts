@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../../../../lib/supabase';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
@@ -18,12 +18,37 @@ export async function POST(request: NextRequest) {
       .from('password_reset_tokens')
       .select('*')
       .eq('token', token)
-      .eq('expires', 'gt', new Date().toISOString())
       .single();
 
     if (tokenError || !resetToken) {
       return NextResponse.json(
-        { error: '無効または期限切れのトークンです' },
+        { error: '無効なトークンです' },
+        { status: 400 }
+      );
+    }
+
+    // トークンの期限切れチェック
+    const now = new Date();
+    const tokenExpiry = new Date(resetToken.expires);
+    
+    if (now > tokenExpiry) {
+      return NextResponse.json(
+        { error: 'トークンの期限が切れています' },
+        { status: 400 }
+      );
+    }
+
+    // 更新前のユーザー情報を確認（サービスロールキーを使用）
+    const client = supabaseAdmin || supabase;
+    const { data: userBeforeUpdate, error: userCheckError } = await client
+      .from('users')
+      .select('id, email, password')
+      .eq('email', resetToken.email)
+      .single();
+
+    if (userCheckError || !userBeforeUpdate) {
+      return NextResponse.json(
+        { error: 'ユーザーが見つかりません' },
         { status: 400 }
       );
     }
@@ -31,22 +56,37 @@ export async function POST(request: NextRequest) {
     // パスワードをハッシュ化
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // ユーザーのパスワードを更新
-    const { error: updateError } = await supabase
+    // ユーザーのパスワードを更新（サービスロールキーを使用）
+    const { data: updateResult, error: updateError, count } = await client
       .from('users')
       .update({ password: hashedPassword })
-      .eq('email', resetToken.email);
+      .eq('email', resetToken.email)
+      .select('id, email');
 
     if (updateError) {
-      console.error('Password update error:', updateError);
       return NextResponse.json(
         { error: 'パスワードの更新に失敗しました' },
         { status: 500 }
       );
     }
 
-    // 使用済みのリセットトークンを削除
-    await supabase
+    // 更新された行数が0の場合、ユーザーが見つからない
+    if (!updateResult || updateResult.length === 0) {
+      return NextResponse.json(
+        { error: 'ユーザーが見つかりません' },
+        { status: 400 }
+      );
+    }
+
+    // 更新後のユーザー情報を確認（サービスロールキーを使用）
+    const { data: userAfterUpdate, error: userAfterCheckError } = await client
+      .from('users')
+      .select('id, email, password')
+      .eq('email', resetToken.email)
+      .single();
+
+    // 使用済みのリセットトークンを削除（サービスロールキーを使用）
+    await client
       .from('password_reset_tokens')
       .delete()
       .eq('token', token);

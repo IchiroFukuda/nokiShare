@@ -42,7 +42,6 @@ export async function POST(request: NextRequest) {
       });
 
     if (tokenError) {
-      console.error('Token save error:', tokenError);
       return NextResponse.json(
         { error: 'リセットトークンの保存に失敗しました' },
         { status: 500 }
@@ -51,14 +50,6 @@ export async function POST(request: NextRequest) {
 
     // リセットメールを送信
     const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password/confirm?token=${resetToken}`;
-    
-    console.log('Reset URL:', resetUrl);
-    console.log('Email settings:', {
-      host: process.env.EMAIL_SERVER_HOST,
-      port: process.env.EMAIL_SERVER_PORT,
-      user: process.env.EMAIL_SERVER_USER,
-      from: process.env.EMAIL_FROM
-    });
     
     try {
       const transporter = nodemailer.createTransport({
@@ -94,11 +85,8 @@ export async function POST(request: NextRequest) {
         `,
       };
 
-      console.log('Sending email to:', email);
       const result = await transporter.sendMail(mailOptions);
-      console.log('Email sent successfully:', result);
     } catch (emailError) {
-      console.error('Email send error:', emailError);
       const errorMessage = emailError instanceof Error ? emailError.message : 'Unknown error';
       return NextResponse.json(
         { error: 'メール送信に失敗しました: ' + errorMessage },
@@ -111,7 +99,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Password reset error:', error);
     return NextResponse.json(
       { error: 'パスワードリセット処理中にエラーが発生しました' },
       { status: 500 }

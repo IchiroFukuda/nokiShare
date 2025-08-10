@@ -114,6 +114,10 @@ GRANT ALL PRIVILEGES ON public.password_reset_tokens TO anon;
 CREATE POLICY "Users are viewable by everyone" ON public.users
   FOR SELECT USING (true);
 
+-- ユーザーテーブルのポリシー（パスワードリセット用）
+CREATE POLICY "Users can update their own password" ON public.users
+  FOR UPDATE USING (true);
+
 -- 製品テーブルのポリシー（会社単位でアクセス制御）
 CREATE POLICY "Products are viewable by company" ON public.products
   FOR SELECT USING (company_id::text = current_setting('app.company_id', true));
