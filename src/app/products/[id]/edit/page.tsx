@@ -22,7 +22,9 @@ type Product = {
   actual_shipping_date: string | null;
   internal_status: string | null;
   public_status: string | null;
+  memo: string | null;
   created_at: string;
+  updated_at: string | null;
   company_id: string;
 };
 
@@ -45,7 +47,8 @@ export default function EditProductPage() {
     estimated_delivery_date: '',
     actual_shipping_date: '',
     internal_status: '',
-    public_status: ''
+    public_status: '',
+    memo: ''
   });
 
   // 認証状態のチェックと製品取得
@@ -94,7 +97,8 @@ export default function EditProductPage() {
           estimated_delivery_date: data.estimated_delivery_date ? data.estimated_delivery_date.split('T')[0] : '',
           actual_shipping_date: data.actual_shipping_date ? data.actual_shipping_date.split('T')[0] : '',
           internal_status: data.internal_status || '',
-          public_status: data.public_status || ''
+          public_status: data.public_status || '',
+          memo: data.memo || ''
         });
       }
     } catch (error) {
@@ -105,7 +109,7 @@ export default function EditProductPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -132,7 +136,7 @@ export default function EditProductPage() {
           actual_shipping_date: formData.actual_shipping_date || null,
           internal_status: formData.internal_status || null,
           public_status: formData.public_status || null,
-          updated_at: new Date().toISOString()
+          memo: formData.memo || null
         })
         .eq('id', product.id)
         .eq('company_id', session?.user?.company_id);
@@ -303,6 +307,19 @@ export default function EditProductPage() {
                     value={formData.public_status}
                     onChange={handleInputChange}
                     placeholder="公開ステータスを入力"
+                  />
+                </div>
+                
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="memo">備考</Label>
+                  <textarea
+                    id="memo"
+                    name="memo"
+                    value={formData.memo}
+                    onChange={handleInputChange}
+                    placeholder="製品に関する備考・メモを入力"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    rows={4}
                   />
                 </div>
               </div>

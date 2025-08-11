@@ -20,7 +20,9 @@ type Product = {
   actual_shipping_date: string | null;
   internal_status: string | null;
   public_status: string | null;
+  memo: string | null;
   created_at: string;
+  updated_at: string | null;
   company_id: string;
 };
 
@@ -234,11 +236,25 @@ export default function ProductDetailPage() {
             </div>
             
             <div className="mt-6 pt-6 border-t border-blue-100">
-              <div className="flex items-center justify-between">
-                <span className="text-blue-700 font-medium">作成日:</span>
-                <span className="text-blue-800 font-semibold">
-                  {new Date(product.created_at).toLocaleDateString('ja-JP')}
-                </span>
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <span className="text-blue-700 font-medium">備考:</span>
+                  <span className="text-blue-800 font-semibold text-right max-w-md">
+                    {product.memo || '備考はありません'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-blue-700 font-medium">作成日:</span>
+                  <span className="text-blue-800 font-semibold">
+                    {new Date(product.created_at).toLocaleDateString('ja-JP')}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-blue-700 font-medium">更新日:</span>
+                  <span className="text-blue-800 font-semibold">
+                    {product.updated_at ? new Date(product.updated_at).toLocaleDateString('ja-JP') : '未更新'}
+                  </span>
+                </div>
               </div>
             </div>
           </CardContent>

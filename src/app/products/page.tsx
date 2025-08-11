@@ -23,7 +23,9 @@ type Product = {
   actual_shipping_date: string | null;
   internal_status: string | null;
   public_status: string | null;
+  memo: string | null;
   created_at: string;
+  updated_at: string | null;
   company_id: string;
 };
 
@@ -277,6 +279,15 @@ export default function ProductsPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-blue-700 font-medium">予定納期:</span>
                       <span className="text-blue-800 font-semibold">{product.estimated_delivery_date || '未設定'}</span>
+                    </div>
+                    <div className="flex items-start justify-between">
+                      <span className="text-blue-700 font-medium">備考:</span>
+                      <span className="text-blue-800 font-semibold text-right max-w-xs truncate">
+                        {product.memo ? (product.memo.length > 20 ? product.memo.substring(0, 20) + '...' : product.memo) : '備考なし'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-blue-600">
+                      <span>更新: {product.updated_at ? new Date(product.updated_at).toLocaleDateString('ja-JP') : '未更新'}</span>
                     </div>
                     <div className="flex space-x-2 mt-4">
                       <Link href={`/products/${product.id}`} className="flex-1">
