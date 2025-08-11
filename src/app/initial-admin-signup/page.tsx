@@ -169,6 +169,41 @@ export default function InitialAdminSignupPage() {
     }
   };
 
+  const handleResendEmail = async () => {
+    setError('');
+    setLoading(true);
+    
+    try {
+      // メール確認メールを再送信
+      const response = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: email,
+          name: email.split('@')[0] // メールアドレスの@前を名前として使用
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(errorData.error || 'メールの再送信に失敗しました');
+      } else {
+        setSuccess('確認メールを再送信しました。メールをご確認ください。');
+        setError(''); // エラーメッセージをクリア
+        // 成功時はフォームをリセットして初期状態に戻す
+        setCompanyName('');
+        setEmail('');
+        setPassword('');
+      }
+    } catch (error) {
+      setError('メールの再送信に失敗しました。しばらく時間をおいて再度お試しください。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="w-full max-w-md mx-auto">
@@ -189,7 +224,22 @@ export default function InitialAdminSignupPage() {
             {error && (
               <Alert variant="destructive" className="mb-6 border-red-200 bg-red-50">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-red-700">{error}</AlertDescription>
+                <AlertDescription className="text-red-700">
+                  {error}
+                  {error.includes('確認が完了していません') && !success && (
+                    <div className="mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResendEmail}
+                        disabled={loading}
+                        className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                      >
+                        📧 確認メールを再送信
+                      </Button>
+                    </div>
+                  )}
+                </AlertDescription>
               </Alert>
             )}
             {/* Success Alert */}

@@ -45,8 +45,8 @@ export default function ResetPasswordConfirmPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('パスワードは6文字以上で入力してください');
+    if (password.length < 8) {
+      setError('パスワードは8文字以上で入力してください');
       return;
     }
 

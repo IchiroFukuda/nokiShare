@@ -46,27 +46,38 @@ export async function POST(request: NextRequest) {
           { error: 'このメールアドレスは既に登録済みです' },
           { status: 409 }
         );
-      } else {
-        return NextResponse.json(
-          { error: 'このメールアドレスは既に登録されていますが、まだ確認が完了していません。確認メールを再送信しますか？' },
-          { status: 409 }
-        );
       }
+      // 確認が完了していない場合は、既存の確認トークンを削除して新しいものを生成
+      // 既存の確認トークンを削除
+      await supabase
+        .from('email_verification_tokens')
+        .delete()
+        .eq('email', email);
     }
 
-    // セッションストレージ用の一時的なトークンを生成
-    const tempToken = crypto.randomBytes(32).toString('hex');
+    // 確認トークンを生成
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24時間後
+    
+    // 確認トークンをデータベースに保存
+    const { error: tokenError } = await supabase
+      .from('email_verification_tokens')
+      .upsert({
+        email: email,
+        token: verificationToken,
+        expires: tokenExpiry.toISOString(),
+      });
+
+    if (tokenError) {
+      console.error('Token save error:', tokenError);
+      return NextResponse.json(
+        { error: '確認トークンの保存に失敗しました' },
+        { status: 500 }
+      );
+    }
     
     // メール確認メールを送信
-    const verificationUrl = `${process.env.NEXTAUTH_URL}/verify-email/confirm?token=${tempToken}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
-    
-    console.log('Verification URL:', verificationUrl);
-    console.log('Email settings:', {
-      host: process.env.EMAIL_SERVER_HOST,
-      port: process.env.EMAIL_SERVER_PORT,
-      user: process.env.EMAIL_SERVER_USER,
-      from: process.env.EMAIL_FROM
-    });
+    const verificationUrl = `${process.env.NEXTAUTH_URL}/verify-email/confirm?token=${verificationToken}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
     
     try {
       const transporter = nodemailer.createTransport({
@@ -102,11 +113,8 @@ export async function POST(request: NextRequest) {
         `,
       };
 
-      console.log('Sending verification email to:', email);
       const result = await transporter.sendMail(mailOptions);
-      console.log('Verification email sent successfully:', result);
     } catch (emailError) {
-      console.error('Email send error:', emailError);
       const errorMessage = emailError instanceof Error ? emailError.message : 'Unknown error';
       return NextResponse.json(
         { error: 'メール送信に失敗しました: ' + errorMessage },
@@ -119,7 +127,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Email verification error:', error);
     return NextResponse.json(
       { error: 'メール確認処理中にエラーが発生しました' },
       { status: 500 }
