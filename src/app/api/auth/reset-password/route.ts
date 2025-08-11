@@ -14,18 +14,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ユーザーが存在するかチェック
+    // ユーザーが存在するかチェック（セキュリティのため、存在しない場合でも処理を継続）
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('id, email')
       .eq('email', email)
       .single();
 
+    // ユーザーが存在しない場合は、セキュリティのため成功レスポンスを返す
     if (userError || !user) {
-      return NextResponse.json(
-        { error: 'このメールアドレスは登録されていません' },
-        { status: 404 }
-      );
+      return NextResponse.json({
+        message: 'パスワードリセット用のメールを送信しました'
+      });
     }
 
     // リセットトークンを生成

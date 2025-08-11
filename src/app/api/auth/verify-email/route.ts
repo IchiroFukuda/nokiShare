@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
         .delete()
         .eq('email', email);
     }
+    // ユーザーが存在しない場合も、セキュリティのため処理を継続
 
     // 確認トークンを生成
     const verificationToken = crypto.randomBytes(32).toString('hex');
