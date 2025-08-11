@@ -11,6 +11,7 @@ import { AlertCircle, Package, LogOut, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import Link from 'next/link';
 
 type Product = {
   id: string;
@@ -278,12 +279,16 @@ export default function ProductsPage() {
                       <span className="text-blue-800 font-semibold">{product.estimated_delivery_date || '未設定'}</span>
                     </div>
                     <div className="flex space-x-2 mt-4">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        詳細
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        編集
-                      </Button>
+                      <Link href={`/products/${product.id}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full">
+                          詳細
+                        </Button>
+                      </Link>
+                      <Link href={`/products/${product.id}/edit`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full">
+                          編集
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </CardContent>
