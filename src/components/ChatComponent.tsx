@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,7 +37,7 @@ export default function ChatComponent({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   // メッセージ取得
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     try {
       const response = await fetch(`/api/chat/${productId}`);
       const data = await response.json();
@@ -51,7 +51,7 @@ export default function ChatComponent({
       console.error('Error fetching messages:', error);
       setError('メッセージの取得中にエラーが発生しました');
     }
-  };
+  }, [productId]);
 
   // メッセージ送信
   const sendMessage = async () => {
@@ -133,7 +133,7 @@ export default function ChatComponent({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [productId]);
+  }, [productId, fetchMessages]);
 
   // 自動スクロール
   useEffect(() => {

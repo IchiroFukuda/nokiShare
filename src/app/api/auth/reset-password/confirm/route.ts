@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // ユーザーのパスワードを更新（サービスロールキーを使用）
-    const { data: updateResult, error: updateError, count } = await client
+    const { data: updateResult, error: updateError } = await client
       .from('users')
       .update({ password: hashedPassword })
       .eq('email', resetToken.email)
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 更新後のユーザー情報を確認（サービスロールキーを使用）
-    const { data: userAfterUpdate, error: userAfterCheckError } = await client
+    await client
       .from('users')
       .select('id, email, password')
       .eq('email', resetToken.email)

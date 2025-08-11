@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Eye, EyeOff, Mail } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export default function AuthPage() {
+function AuthPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -219,7 +219,7 @@ export default function AuthPage() {
         // 成功時はメール送信済み状態にする
         setIsEmailSent(true);
       }
-    } catch (error) {
+    } catch {
       setError('メールの再送信に失敗しました。しばらく時間をおいて再度お試しください。');
     } finally {
       setLoading(false);
@@ -399,5 +399,17 @@ export default function AuthPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-blue-600 text-lg">読み込み中...</div>
+      </div>
+    }>
+      <AuthPageContent />
+    </Suspense>
   );
 } 

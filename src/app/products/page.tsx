@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Package, LogOut, Plus, Share2, Copy, Check } from 'lucide-react';
+import { AlertCircle, Package, LogOut, Plus, Share2, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,30 +44,8 @@ export default function ProductsPage() {
   const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
   const router = useRouter();
 
-
-
-  // 認証状態のチェックと製品取得
-  useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true); // 認証状態読み込み中はローディング表示
-      return;
-    }
-
-    if (status === 'unauthenticated') {
-      setLoading(false);
-      router.push('/login');
-      return;
-    }
-
-    if (session?.user?.company_id) {
-      fetchProducts();
-    } else {
-      setLoading(false);
-    }
-  }, [session, status, router]);
-
   // 製品取得関数
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     if (!session?.user?.company_id) {
       return;
     }
@@ -96,7 +74,27 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.user?.company_id]);
+
+  // 認証状態のチェックと製品取得
+  useEffect(() => {
+    if (status === 'loading') {
+      setLoading(true); // 認証状態読み込み中はローディング表示
+      return;
+    }
+
+    if (status === 'unauthenticated') {
+      setLoading(false);
+      router.push('/login');
+      return;
+    }
+
+    if (session?.user?.company_id) {
+      fetchProducts();
+    } else {
+      setLoading(false);
+    }
+  }, [session, status, router, fetchProducts]);
 
 
 

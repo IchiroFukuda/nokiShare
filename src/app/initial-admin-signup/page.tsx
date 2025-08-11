@@ -210,7 +210,7 @@ export default function InitialAdminSignupPage() {
         setEmail('');
         setPassword('');
       }
-    } catch (error) {
+    } catch {
       setError('メールの再送信に失敗しました。しばらく時間をおいて再度お試しください。');
     } finally {
       setLoading(false);
