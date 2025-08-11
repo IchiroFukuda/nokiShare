@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Package, LogOut, Plus } from 'lucide-react';
+import { AlertCircle, Package, LogOut, Plus, Share2, Copy, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,6 +41,7 @@ export default function ProductsPage() {
   const [addDate, setAddDate] = useState('');
   const [addCustomer, setAddCustomer] = useState('');
   const [addLoading, setAddLoading] = useState(false);
+  const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
   const router = useRouter();
 
 
@@ -140,6 +141,27 @@ export default function ProductsPage() {
       setError('製品の追加中に予期しないエラーが発生しました');
     } finally {
       setAddLoading(false);
+    }
+  };
+
+  const handleShare = async (product: Product) => {
+    const shareUrl = `${window.location.origin}/public/products/${product.unique_key}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedProductId(product.id);
+      setTimeout(() => setCopiedProductId(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy URL:', error);
+      // フォールバック: 手動でURLを選択
+      const textArea = document.createElement('textarea');
+      textArea.value = shareUrl;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedProductId(product.id);
+      setTimeout(() => setCopiedProductId(null), 2000);
     }
   };
 
@@ -290,6 +312,23 @@ export default function ProductsPage() {
                       <span>更新: {product.updated_at ? new Date(product.updated_at).toLocaleDateString('ja-JP') : '未更新'}</span>
                     </div>
                     <div className="flex space-x-2 mt-4">
+                      <Button 
+                        onClick={() => handleShare(product)} 
+                        size="sm" 
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {copiedProductId === product.id ? (
+                          <>
+                            <Check className="w-4 h-4 mr-1" />
+                            コピー完了
+                          </>
+                        ) : (
+                          <>
+                            <Share2 className="w-4 h-4 mr-1" />
+                            共有
+                          </>
+                        )}
+                      </Button>
                       <Link href={`/products/${product.id}`} className="flex-1">
                         <Button variant="outline" size="sm" className="w-full">
                           詳細
