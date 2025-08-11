@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
@@ -51,24 +51,8 @@ export default function EditProductPage() {
     memo: ''
   });
 
-  // 認証状態のチェックと製品取得
-  useEffect(() => {
-    if (status === 'loading') {
-      return;
-    }
-
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-
-    if (session?.user?.company_id && productId) {
-      fetchProduct();
-    }
-  }, [session, status, router, productId]);
-
   // 製品取得関数
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     if (!session?.user?.company_id || !productId) {
       return;
     }
@@ -107,7 +91,23 @@ export default function EditProductPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.user?.company_id, productId]);
+
+  // 認証状態のチェックと製品取得
+  useEffect(() => {
+    if (status === 'loading') {
+      return;
+    }
+
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+
+    if (session?.user?.company_id && productId) {
+      fetchProduct();
+    }
+  }, [session, status, router, productId, fetchProduct]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

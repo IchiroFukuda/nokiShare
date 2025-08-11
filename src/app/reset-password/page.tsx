@@ -37,7 +37,7 @@ export default function ResetPasswordPage() {
       } else {
         setMessage('パスワードリセット用のメールを送信しました。メールをご確認ください。');
       }
-    } catch (error) {
+    } catch {
       setError('パスワードリセット処理中にエラーが発生しました');
     } finally {
       setLoading(false);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../../lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,15 +31,8 @@ export default function PublicProductPage() {
   const params = useParams();
   const uniqueKey = params.unique_key as string;
 
-  // 製品取得
-  useEffect(() => {
-    if (uniqueKey) {
-      fetchProduct();
-    }
-  }, [uniqueKey]);
-
   // 製品取得関数
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     if (!uniqueKey) {
       return;
     }
@@ -61,12 +54,19 @@ export default function PublicProductPage() {
         setProduct(data);
       }
     } catch (error) {
-      console.error('Unexpected error fetching product:', error);
-      setError('製品の取得中に予期しないエラーが発生しました');
+        console.error('Unexpected error fetching product:', error);
+        setError('製品の取得中に予期しないエラーが発生しました');
     } finally {
       setLoading(false);
     }
-  };
+  }, [uniqueKey]);
+
+  // 製品取得
+  useEffect(() => {
+    if (uniqueKey) {
+      fetchProduct();
+    }
+  }, [uniqueKey, fetchProduct]);
 
   if (loading) {
     return (

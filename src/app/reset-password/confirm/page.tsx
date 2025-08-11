@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import Link from 'next/link';
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
 
-export default function ResetPasswordConfirmPage() {
+function ResetPasswordConfirmContent() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -71,7 +71,7 @@ export default function ResetPasswordConfirmPage() {
           router.push('/login');
         }, 2000);
       }
-    } catch (error) {
+    } catch {
       setError('パスワード更新処理中にエラーが発生しました');
     } finally {
       setLoading(false);
@@ -201,5 +201,17 @@ export default function ResetPasswordConfirmPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordConfirmPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-blue-600 text-lg">読み込み中...</div>
+      </div>
+    }>
+      <ResetPasswordConfirmContent />
+    </Suspense>
   );
 } 

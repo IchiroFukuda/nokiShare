@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Package, ArrowLeft, Edit, Trash2, Share2, Copy, Check } from 'lucide-react';
+import { AlertCircle, Package, ArrowLeft, Edit, Trash2, Share2, Check } from 'lucide-react';
 import Link from 'next/link';
 import ChatComponent from '../../../components/ChatComponent';
 
@@ -37,24 +37,8 @@ export default function ProductDetailPage() {
   const params = useParams();
   const productId = params.id as string;
 
-  // 認証状態のチェックと製品取得
-  useEffect(() => {
-    if (status === 'loading') {
-      return;
-    }
-
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-
-    if (session?.user?.company_id && productId) {
-      fetchProduct();
-    }
-  }, [session, status, router, productId]);
-
   // 製品取得関数
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     if (!session?.user?.company_id || !productId) {
       return;
     }
@@ -82,7 +66,23 @@ export default function ProductDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.user?.company_id, productId]);
+
+  // 認証状態のチェックと製品取得
+  useEffect(() => {
+    if (status === 'loading') {
+      return;
+    }
+
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+
+    if (session?.user?.company_id && productId) {
+      fetchProduct();
+    }
+  }, [session, status, router, productId, fetchProduct]);
 
   const handleDelete = async () => {
     if (!product || !confirm('この製品を削除しますか？この操作は取り消せません。')) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import bcrypt from 'bcryptjs';
 
-export default function VerifyEmailConfirmPage() {
+function VerifyEmailConfirmContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const router = useRouter();
@@ -103,7 +104,6 @@ export default function VerifyEmailConfirmPage() {
         if (data.isNewUser) {
           try {
             // パスワードをハッシュ化
-            const bcrypt = require('bcryptjs');
             const hashedPassword = await bcrypt.hash(password, 12);
 
             // セッションストレージから会社IDを取得
@@ -152,8 +152,8 @@ export default function VerifyEmailConfirmPage() {
 
         setStatus('success');
         setMessage('メールアドレスの確認が完了しました');
-      } catch (error) {
-        console.error('Email verification error:', error);
+      } catch {
+        console.error('Email verification error: Unknown error');
         setStatus('error');
         setMessage('メール確認処理中にエラーが発生しました');
       }
@@ -231,5 +231,17 @@ export default function VerifyEmailConfirmPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function VerifyEmailConfirmPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-blue-600 text-lg">読み込み中...</div>
+      </div>
+    }>
+      <VerifyEmailConfirmContent />
+    </Suspense>
   );
 } 

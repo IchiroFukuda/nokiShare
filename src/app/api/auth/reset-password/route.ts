@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         `,
       };
 
-      const result = await transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions);
     } catch (emailError) {
       const errorMessage = emailError instanceof Error ? emailError.message : 'Unknown error';
       return NextResponse.json(
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       message: 'パスワードリセット用のメールを送信しました'
     });
 
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'パスワードリセット処理中にエラーが発生しました' },
       { status: 500 }
