@@ -7,10 +7,11 @@ import { supabase } from '../../lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Package, LogOut, Plus } from 'lucide-react';
+import { AlertCircle, Package, LogOut, Plus, Share2, Copy, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import Link from 'next/link';
 
 type Product = {
   id: string;
@@ -22,7 +23,9 @@ type Product = {
   actual_shipping_date: string | null;
   internal_status: string | null;
   public_status: string | null;
+  memo: string | null;
   created_at: string;
+  updated_at: string | null;
   company_id: string;
 };
 
@@ -36,7 +39,9 @@ export default function ProductsPage() {
   const [open, setOpen] = useState(false);
   const [addName, setAddName] = useState('');
   const [addDate, setAddDate] = useState('');
+  const [addCustomer, setAddCustomer] = useState('');
   const [addLoading, setAddLoading] = useState(false);
+  const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
   const router = useRouter();
 
 
@@ -93,6 +98,8 @@ export default function ProductsPage() {
     }
   };
 
+
+
   const handleLogout = async () => {
     await signOut({ redirect: false });
     router.push('/login');
@@ -101,7 +108,7 @@ export default function ProductsPage() {
   // 製品追加処理
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addName || !addDate || !session?.user?.company_id) return;
+    if (!addName || !addDate || !addCustomer || !session?.user?.company_id) return;
     
     setAddLoading(true);
     setError('');
@@ -112,7 +119,7 @@ export default function ProductsPage() {
         .insert([{
           product_name: addName,
           order_number: `ORD-${Date.now()}`,
-          customer_name: '新規顧客',
+          customer_name: addCustomer,
           unique_key: `KEY-${Date.now()}`,
           estimated_delivery_date: addDate,
           company_id: session.user.company_id
@@ -126,6 +133,7 @@ export default function ProductsPage() {
         await fetchProducts();
         setAddName('');
         setAddDate('');
+        setAddCustomer('');
         setOpen(false);
       }
     } catch (error) {
@@ -133,6 +141,27 @@ export default function ProductsPage() {
       setError('製品の追加中に予期しないエラーが発生しました');
     } finally {
       setAddLoading(false);
+    }
+  };
+
+  const handleShare = async (product: Product) => {
+    const shareUrl = `${window.location.origin}/public/products/${product.unique_key}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedProductId(product.id);
+      setTimeout(() => setCopiedProductId(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy URL:', error);
+      // フォールバック: 手動でURLを選択
+      const textArea = document.createElement('textarea');
+      textArea.value = shareUrl;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedProductId(product.id);
+      setTimeout(() => setCopiedProductId(null), 2000);
     }
   };
 
@@ -195,6 +224,15 @@ export default function ProductsPage() {
                       id="add-name"
                       value={addName}
                       onChange={e => setAddName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="add-customer">顧客名 <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="add-customer"
+                      value={addCustomer}
+                      onChange={e => setAddCustomer(e.target.value)}
                       required
                     />
                   </div>
@@ -264,13 +302,43 @@ export default function ProductsPage() {
                       <span className="text-blue-700 font-medium">予定納期:</span>
                       <span className="text-blue-800 font-semibold">{product.estimated_delivery_date || '未設定'}</span>
                     </div>
+                    <div className="flex items-start justify-between">
+                      <span className="text-blue-700 font-medium">備考:</span>
+                      <span className="text-blue-800 font-semibold text-right max-w-xs truncate">
+                        {product.memo ? (product.memo.length > 20 ? product.memo.substring(0, 20) + '...' : product.memo) : '備考なし'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-blue-600">
+                      <span>更新: {product.updated_at ? new Date(product.updated_at).toLocaleDateString('ja-JP') : '未更新'}</span>
+                    </div>
                     <div className="flex space-x-2 mt-4">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        詳細
+                      <Button 
+                        onClick={() => handleShare(product)} 
+                        size="sm" 
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {copiedProductId === product.id ? (
+                          <>
+                            <Check className="w-4 h-4 mr-1" />
+                            コピー完了
+                          </>
+                        ) : (
+                          <>
+                            <Share2 className="w-4 h-4 mr-1" />
+                            共有
+                          </>
+                        )}
                       </Button>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        編集
-                      </Button>
+                      <Link href={`/products/${product.id}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full">
+                          詳細
+                        </Button>
+                      </Link>
+                      <Link href={`/products/${product.id}/edit`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full">
+                          編集
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </CardContent>

@@ -23,6 +23,13 @@ export default function UpdatePasswordPage() {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    // パスワードの長さをチェック
+    if (password.length < 8) {
+      setError('パスワードは8文字以上で入力してください');
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {

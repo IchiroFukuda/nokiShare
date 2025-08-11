@@ -35,56 +35,186 @@ export default function InitialAdminSignupPage() {
     setError("");
     setSuccess("");
     setLoading(true);
+    
     if (!companyName.trim()) {
       setError("会社名を入力してください");
       setLoading(false);
       return;
     }
-    // 1. サインアップ
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
-    if (signUpError || !signUpData.user) {
-      setError(signUpError?.message || "サインアップに失敗しました");
+
+    if (password.length < 8) {
+      setError("パスワードは8文字以上で入力してください");
       setLoading(false);
       return;
     }
-    const userId = signUpData.user.id;
-    // 2. companiesテーブルに会社をinsert
-    const { data: companyData, error: companyError } = await supabase
-      .from("companies")
-      .insert([{ name: companyName }])
-      .select("id")
-      .single();
-    if (companyError || !companyData) {
-      setError(companyError?.message || "会社の登録に失敗しました");
-      setLoading(false);
-      return;
-    }
-    const companyId = companyData.id;
-    // 3. company_usersテーブルに管理者ロールでinsert
-    const { error: cuError } = await supabase
-      .from("company_users")
-      .insert([{ user_id: userId, company_id: companyId, email, role: "admin" }]);
-    if (cuError) {
-      setError(cuError.message || "ユーザーの登録に失敗しました");
-      setLoading(false);
-      return;
-    }
-    setSuccess("初期管理者登録が完了しました。メールを確認してください。");
-    // サインアップ直後にuser_metadataへcompany_idをセット
+
     try {
-      await supabase.auth.updateUser({ data: { company_id: companyId, role: "admin" } });
-    } catch (e) {
-      // メール認証前は失敗する場合があるので無視
+      // セッションストレージにパスワードと名前を保存
+      const signupData = {
+        password: password,
+        name: email.split('@')[0],
+        timestamp: Date.now(),
+        expires: Date.now() + (24 * 60 * 60 * 1000) // 24時間後
+      };
+      localStorage.setItem('signup_data', JSON.stringify(signupData));
+      
+      // デバッグ情報を追加
+      console.log('Debug: Saved signup data to localStorage:', signupData);
+      console.log('Debug: localStorage.getItem("signup_data"):', localStorage.getItem('signup_data'));
+
+      // 1. 会社を作成
+      const { data: companyData, error: companyError } = await supabase
+        .from("companies")
+        .insert([{ name: companyName }])
+        .select("id")
+        .single();
+
+      if (companyError && !companyError.message.includes('duplicate key')) {
+        setError("会社の作成に失敗しました");
+        setLoading(false);
+        return;
+      }
+
+      // 会社IDを取得（新規作成または既存）
+      let companyId;
+      if (companyData) {
+        companyId = companyData.id;
+      } else {
+        const { data: existingCompany } = await supabase
+          .from("companies")
+          .select("id")
+          .eq("name", companyName)
+          .single();
+        companyId = existingCompany?.id;
+      }
+
+      if (!companyId) {
+        setError("会社情報の取得に失敗しました");
+        setLoading(false);
+        return;
+      }
+
+      // 会社IDをセッションストレージに保存
+      localStorage.setItem('signup_company_id', companyId);
+
+      // 2. メール確認メールを送信
+      try {
+        const response = await fetch('/api/auth/verify-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            email: email,
+            name: email.split('@')[0]
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Email verification failed:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData,
+            responseHeaders: Object.fromEntries(response.headers.entries())
+          });
+          
+          // エラーの種類に応じて適切なメッセージを表示
+          if (response.status === 409) {
+            setError(errorData.error || 'このメールアドレスでは登録できません。既にアカウントをお持ちの場合は、ログインまたはパスワードリセットをご利用ください。');
+            // 409エラーの場合はセッションストレージをクリアして処理を停止
+            localStorage.removeItem('signup_data');
+            localStorage.removeItem('signup_company_id');
+            setLoading(false);
+            return;
+          } else if (response.status === 400) {
+            setError(errorData.error || '入力内容に問題があります。');
+          } else {
+            setError('メール送信に失敗しました。しばらく時間をおいて再度お試しください。');
+          }
+          
+          // エラー時はセッションストレージをクリア
+          localStorage.removeItem('signup_data');
+          localStorage.removeItem('signup_company_id');
+          setLoading(false);
+          return;
+        } else {
+          const responseData = await response.json();
+          console.log('Email verification successful:', {
+            status: response.status,
+            responseData: responseData
+          });
+        }
+      } catch (emailError) {
+        console.error('Email verification error:', emailError);
+        setError('メール送信に失敗しました。しばらく時間をおいて再度お試しください。');
+        // エラー時はセッションストレージをクリア
+        localStorage.removeItem('signup_data');
+        localStorage.removeItem('signup_company_id');
+        setLoading(false);
+        return;
+      }
+
+      // 3. 初期登録済みフラグON
+      if (typeof window !== "undefined") {
+        localStorage.setItem("initialAdminRegistered", "true");
+      }
+
+      // 既存ユーザーが確認済みの場合も含めて成功メッセージを表示
+      setSuccess("初期管理者登録の準備が完了しました。メール確認用のメールを送信しました。メールをご確認ください。");
+      setLoading(false);
+      
+      // フォームをリセット
+      setCompanyName("");
+      setEmail("");
+      setPassword("");
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError("登録処理中にエラーが発生しました");
+      setLoading(false);
     }
-    // 初期登録済みフラグON
-    if (typeof window !== "undefined") {
-      localStorage.setItem("initialAdminRegistered", "true");
+  };
+
+  const handleResendEmail = async () => {
+    setError('');
+    setLoading(true);
+    
+    try {
+      // メール確認メールを再送信
+      const response = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: email,
+          name: email.split('@')[0] // メールアドレスの@前を名前として使用
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        // 409エラーの場合は既存ユーザーが確認済み
+        if (response.status === 409) {
+          setError('このメールアドレスでは登録できません。既にアカウントをお持ちの場合は、ログインまたはパスワードリセットをご利用ください。');
+        } else {
+          setError(errorData.error || 'メールの再送信に失敗しました');
+        }
+      } else {
+        const responseData = await response.json();
+        setSuccess(responseData.message || '確認メールを再送信しました。メールをご確認ください。');
+        setError(''); // エラーメッセージをクリア
+        // 成功時はフォームをリセットして初期状態に戻す
+        setCompanyName('');
+        setEmail('');
+        setPassword('');
+      }
+    } catch (error) {
+      setError('メールの再送信に失敗しました。しばらく時間をおいて再度お試しください。');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-    // 2秒後に/loginへ遷移
-    setTimeout(() => {
-      router.replace("/login");
-    }, 2000);
   };
 
   return (
@@ -107,7 +237,22 @@ export default function InitialAdminSignupPage() {
             {error && (
               <Alert variant="destructive" className="mb-6 border-red-200 bg-red-50">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-red-700">{error}</AlertDescription>
+                <AlertDescription className="text-red-700">
+                  {error}
+                  {error.includes('確認が完了していません') && !success && (
+                    <div className="mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResendEmail}
+                        disabled={loading}
+                        className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                      >
+                        📧 確認メールを再送信
+                      </Button>
+                    </div>
+                  )}
+                </AlertDescription>
               </Alert>
             )}
             {/* Success Alert */}
