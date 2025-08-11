@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
       .eq('email', email)
       .single();
 
+    console.log('User check result:', { existingUser, userCheckError, email });
+
     if (userCheckError && userCheckError.code !== 'PGRST116') {
       // PGRST116は「行が見つからない」エラー以外のエラー
       console.error('User check error:', userCheckError);
@@ -40,19 +42,29 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingUser) {
+      console.log('Existing user found:', { 
+        id: existingUser.id, 
+        email_verified: existingUser.email_verified,
+        email: email 
+      });
+      
       // 既存ユーザーの場合
       if (existingUser.email_verified) {
+        console.log('User already verified, returning error message without sending email');
         return NextResponse.json(
-          { error: 'このメールアドレスは既に登録済みです' },
+          { error: 'このメールアドレスでは登録できません。既にアカウントをお持ちの場合は、ログインまたはパスワードリセットをご利用ください。' },
           { status: 409 }
         );
       }
       // 確認が完了していない場合は、既存の確認トークンを削除して新しいものを生成
+      console.log('User not verified, proceeding with email verification');
       // 既存の確認トークンを削除
       await supabase
         .from('email_verification_tokens')
         .delete()
         .eq('email', email);
+    } else {
+      console.log('No existing user found, proceeding with new user registration');
     }
     // ユーザーが存在しない場合も、セキュリティのため処理を継続
 

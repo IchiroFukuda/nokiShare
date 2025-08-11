@@ -142,16 +142,17 @@ export default function AuthPage() {
         console.error('Email verification failed:', {
           status: response.status,
           statusText: response.statusText,
-          error: errorData
+          error: errorData,
+          responseHeaders: Object.fromEntries(response.headers.entries())
         });
         
         // エラーの種類に応じて適切なメッセージを表示
         if (response.status === 409) {
-          if (errorData.error.includes('まだ確認が完了していません')) {
-            setError('このメールアドレスは既に登録されていますが、確認が完了していません。確認メールを再送信しますか？');
-          } else {
-            setError('このメールアドレスは既に登録済みです。別のメールアドレスを使用するか、ログインページからログインしてください。');
-          }
+          setError(errorData.error || 'このメールアドレスでは登録できません。既にアカウントをお持ちの場合は、ログインまたはパスワードリセットをご利用ください。');
+          // 409エラーの場合はセッションストレージをクリアして処理を停止
+          localStorage.removeItem('signup_data');
+          setLoading(false);
+          return;
         } else if (response.status === 400) {
           setError(errorData.error || '入力内容に問題があります。');
         } else {
@@ -161,8 +162,16 @@ export default function AuthPage() {
         // エラー時はセッションストレージをクリア
         localStorage.removeItem('signup_data');
       } else {
+        const responseData = await response.json();
+        console.log('Email verification successful:', {
+          status: response.status,
+          responseData: responseData
+        });
+        
+        // 既存ユーザーが確認済みの場合も含めて成功として処理
         setIsEmailSent(true);
-        setSuccess('認証メールを送信しました。メールをご確認ください。');
+        setSuccess(responseData.message || '認証メールを送信しました。メールをご確認ください。');
+        
         // フォームをリセット
         setEmail('');
         setSignupPassword('');
@@ -197,9 +206,15 @@ export default function AuthPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        setError(errorData.error || 'メールの再送信に失敗しました');
+        // 409エラーの場合は既存ユーザーが確認済み
+        if (response.status === 409) {
+          setError('このメールアドレスでは登録できません。既にアカウントをお持ちの場合は、ログインまたはパスワードリセットをご利用ください。');
+        } else {
+          setError(errorData.error || 'メールの再送信に失敗しました');
+        }
       } else {
-        setSuccess('確認メールを再送信しました。メールをご確認ください。');
+        const responseData = await response.json();
+        setSuccess(responseData.message || '確認メールを再送信しました。メールをご確認ください。');
         setError(''); // エラーメッセージをクリア
         // 成功時はメール送信済み状態にする
         setIsEmailSent(true);
