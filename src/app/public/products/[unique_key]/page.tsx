@@ -6,6 +6,7 @@ import { supabase } from '../../../../lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Package, ExternalLink } from 'lucide-react';
+import ChatComponent from '../../../../components/ChatComponent';
 
 type Product = {
   id: string;
@@ -192,6 +193,15 @@ export default function PublicProductPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Chat Component */}
+        <div className="mt-8">
+          <ChatComponent
+            productId={product.id}
+            productName={product.product_name}
+            isCompanyUser={false}
+          />
+        </div>
       </div>
     </div>
   );

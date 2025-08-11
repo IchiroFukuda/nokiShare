@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Package, ArrowLeft, Edit, Trash2, Share2, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
+import ChatComponent from '../../../components/ChatComponent';
 
 type Product = {
   id: string;
@@ -296,6 +297,16 @@ export default function ProductDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Chat Component */}
+        <div className="mt-8">
+          <ChatComponent
+            productId={product.id}
+            productName={product.product_name}
+            isCompanyUser={true}
+            companyName={session?.user?.name || '会社担当者'}
+          />
+        </div>
       </div>
     </div>
   );
